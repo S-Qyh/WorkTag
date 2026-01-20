@@ -28,11 +28,26 @@ pip install -r requirements.txt
 python main.py
 ```
 
-或者直接运行：
+### 3. 打包为可执行文件
+
+WorkTag 支持打包为独立的 Windows 可执行文件：
 
 ```bash
-python main.py
+python build_exe.py
 ```
+
+打包完成后：
+- 可执行文件位于 `dist/WorkTag.exe`
+- 独立发布包位于 `WorkTag_Package/` 目录
+
+**数据库存储位置**：
+- **开发环境**：数据库文件存储在项目目录下的 `data/worklog.db`
+- **打包环境**：数据库文件存储在用户数据目录（Windows: `AppData\Local\WorkTag\data\worklog.db`）
+
+这样设计的好处：
+1. **数据安全**：重新打包时不会丢失用户数据
+2. **用户友好**：每个用户有独立的数据存储
+3. **易于维护**：开发和生产环境使用不同的存储路径
 
 ## 使用说明
 

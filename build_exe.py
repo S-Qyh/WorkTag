@@ -32,15 +32,9 @@ def collect_data_files():
     if os.path.exists(icon_path):
         data_files.append((icon_path, 'ui'))
     
-    # 数据库文件（如果需要初始数据库）
-    db_dir = 'data'
-    if os.path.exists(db_dir):
-        for root, dirs, files in os.walk(db_dir):
-            for file in files:
-                if file.endswith('.db'):
-                    src_path = os.path.join(root, file)
-                    rel_path = os.path.relpath(root, '.')
-                    data_files.append((src_path, rel_path))
+    # 注意：数据库文件不再打包到exe中
+    # 数据库文件将存储在用户数据目录（Windows: AppData/Local/WorkTag/data）
+    # 这样可以避免每次重新打包时丢失用户数据
     
     return data_files
 
@@ -127,7 +121,9 @@ def build_exe():
         
         print("\n使用说明:")
         print("1. 可执行文件位于 'dist' 目录")
-        print("2. 首次运行会在程序所在目录创建 'data' 文件夹")
+        print("2. 首次运行会在用户数据目录创建数据库文件")
+        print("   - Windows: AppData\\Local\\WorkTag\\data\\worklog.db")
+        print("   - 这样即使重新打包也不会丢失数据")
         print("3. 程序会常驻系统托盘")
         print("4. 右键点击托盘图标可以退出程序")
         

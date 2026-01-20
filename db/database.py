@@ -1,17 +1,45 @@
 import sqlite3
 import os
+import sys
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple
 
 class Database:
-    def __init__(self, db_path: str = "data/worklog.db"):
+    def __init__(self, db_path: str = None):
         """初始化数据库连接"""
+        if db_path is None:
+            db_path = self._get_default_db_path()
+        
         # 确保数据目录存在
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         
         self.db_path = db_path
         self.conn = None
         self._init_db()
+    
+    def _get_default_db_path(self) -> str:
+        """获取默认数据库路径"""
+        # 检查是否运行在PyInstaller打包的exe中
+        if getattr(sys, 'frozen', False):
+            # 如果是打包的exe，使用用户数据目录
+            # 对于Windows，使用AppData/Local
+            if sys.platform == 'win32':
+                appdata_dir = os.getenv('LOCALAPPDATA')
+                if appdata_dir:
+                    db_dir = os.path.join(appdata_dir, 'WorkTag', 'data')
+                else:
+                    # 回退到exe所在目录
+                    exe_dir = os.path.dirname(sys.executable)
+                    db_dir = os.path.join(exe_dir, 'data')
+            else:
+                # 对于非Windows系统，使用用户主目录
+                home_dir = os.path.expanduser('~')
+                db_dir = os.path.join(home_dir, '.worktag', 'data')
+        else:
+            # 开发环境，使用项目目录下的data目录
+            db_dir = 'data'
+        
+        return os.path.join(db_dir, 'worklog.db')
     
     def _init_db(self):
         """初始化数据库表"""
