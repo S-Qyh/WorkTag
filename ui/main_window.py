@@ -2,7 +2,7 @@ import sys
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QListWidget, QListWidgetItem, QPushButton, QLabel,
-    QMenu, QSystemTrayIcon, QMessageBox
+    QMenu, QSystemTrayIcon, QMessageBox, QScrollArea
 )
 from PySide6.QtCore import Qt, QTimer, QPoint, QSize
 from PySide6.QtGui import QIcon, QAction, QFont, QKeyEvent, QColor
@@ -92,6 +92,9 @@ class MainWindow(QMainWindow):
         # 加载今天的数据
         self.load_today_logs()
         
+        # 加载项目
+        self.load_projects()
+        
         # 系统托盘
         self.init_tray_icon()
         
@@ -142,6 +145,56 @@ class MainWindow(QMainWindow):
         date_label = QLabel(f"📅 {today}")
         date_label.setStyleSheet("color: #888888; font-size: 13px; margin-bottom: 10px;")
         layout.addWidget(date_label)
+        
+        # 项目选择区域
+        projects_label = QLabel("📁 项目选择：")
+        projects_label.setStyleSheet("color: #aaaaaa; font-size: 13px; margin-bottom: 5px;")
+        layout.addWidget(projects_label)
+        
+        # 项目按钮滚动区域
+        self.projects_scroll_area = QScrollArea()
+        self.projects_scroll_area.setWidgetResizable(True)
+        self.projects_scroll_area.setFixedHeight(80)
+        self.projects_scroll_area.setStyleSheet("""
+            QScrollArea {
+                background-color: #2b2b2b;
+                border: 1px solid #444;
+                border-radius: 4px;
+            }
+            QScrollArea > QWidget > QWidget {
+                background-color: #2b2b2b;
+            }
+        """)
+        
+        # 项目按钮容器
+        self.projects_container = QWidget()
+        self.projects_layout = QHBoxLayout(self.projects_container)
+        self.projects_layout.setContentsMargins(5, 5, 5, 5)
+        self.projects_layout.setSpacing(5)
+        
+        self.projects_scroll_area.setWidget(self.projects_container)
+        layout.addWidget(self.projects_scroll_area)
+        
+        # 项目操作按钮
+        projects_actions_layout = QHBoxLayout()
+        
+        import_btn = QPushButton("从历史导入")
+        import_btn.setFixedHeight(24)
+        import_btn.clicked.connect(self.import_projects_from_history)
+        
+        add_btn = QPushButton("添加项目")
+        add_btn.setFixedHeight(24)
+        add_btn.clicked.connect(self.add_new_project)
+        
+        refresh_btn = QPushButton("刷新")
+        refresh_btn.setFixedHeight(24)
+        refresh_btn.clicked.connect(self.load_projects)
+        
+        projects_actions_layout.addWidget(import_btn)
+        projects_actions_layout.addWidget(add_btn)
+        projects_actions_layout.addWidget(refresh_btn)
+        
+        layout.addLayout(projects_actions_layout)
         
         # 输入框
         self.input_field = QLineEdit()
@@ -273,11 +326,25 @@ class MainWindow(QMainWindow):
                 tags=parsed["tags"]
             )
             
+            # 增加项目使用计数
+            if parsed["project"]:
+                # 项目名可能是多个，用逗号分隔
+                projects = [p.strip() for p in parsed["project"].split(',')]
+                for project_name in projects:
+                    if project_name:  # 确保不为空
+                        try:
+                            self.db.increment_project_usage(project_name)
+                        except Exception as e:
+                            print(f"更新项目 {project_name} 使用计数失败: {e}")
+            
             # 清空输入框
             self.input_field.clear()
             
             # 重新加载日志
             self.load_today_logs()
+            
+            # 重新加载项目（更新使用次数排序）
+            self.load_projects()
             
             # 显示成功状态
             self.show_status(f"已添加记录 #{log_id}", "success")
@@ -413,6 +480,149 @@ class MainWindow(QMainWindow):
         self.db.close()
         self.tray_icon.hide()
         QApplication.quit()
+    
+    def load_projects(self):
+        """加载并显示项目按钮"""
+        # 清除现有按钮
+        for i in reversed(range(self.projects_layout.count())):
+            widget = self.projects_layout.itemAt(i).widget()
+            if widget:
+                widget.deleteLater()
+        
+        try:
+            # 从数据库获取项目
+            projects = self.db.get_all_projects()
+            
+            if not projects:
+                # 如果没有项目，显示提示
+                empty_label = QLabel("暂无项目，点击'从历史导入'或'添加项目'")
+                empty_label.setStyleSheet("color: #888888; font-size: 12px; padding: 10px;")
+                self.projects_layout.addWidget(empty_label)
+                return
+            
+            # 按使用次数排序（降序）
+            projects.sort(key=lambda x: x.get('usage_count', 0), reverse=True)
+            
+            for project in projects:
+                project_name = project.get('name', '')
+                usage_count = project.get('usage_count', 0)
+                
+                if not project_name:
+                    continue
+                
+                # 创建项目按钮
+                btn = QPushButton(f"[{project_name}]")
+                btn.setToolTip(f"点击插入项目名\n使用次数: {usage_count}")
+                btn.setFixedHeight(30)
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #3c3c3c;
+                        color: #ffffff;
+                        border: 1px solid #555;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        font-size: 11px;
+                        min-width: 60px;
+                    }
+                    QPushButton:hover {
+                        background-color: #4a4a4a;
+                        border-color: #666;
+                    }
+                    QPushButton:pressed {
+                        background-color: #2a2a2a;
+                    }
+                """)
+                
+                # 连接点击事件
+                btn.clicked.connect(lambda checked, name=project_name: self.on_project_clicked(name))
+                
+                self.projects_layout.addWidget(btn)
+            
+            # 添加弹性空间
+            self.projects_layout.addStretch()
+            
+        except Exception as e:
+            self.show_status(f"加载项目失败: {str(e)}", "error")
+    
+    def on_project_clicked(self, project_name):
+        """处理项目按钮点击"""
+        current_text = self.input_field.text()
+        
+        # 检查是否已经包含该项目名
+        if f"[{project_name}]" in current_text:
+            # 如果已经包含，不重复添加
+            self.show_status(f"项目 [{project_name}] 已在输入中", "info")
+            return
+        
+        # 在光标位置插入项目名
+        cursor_position = self.input_field.cursorPosition()
+        new_text = current_text[:cursor_position] + f"[{project_name}]" + current_text[cursor_position:]
+        self.input_field.setText(new_text)
+        
+        # 移动光标到项目名之后
+        new_cursor_position = cursor_position + len(f"[{project_name}]")
+        self.input_field.setCursorPosition(new_cursor_position)
+        
+        # 增加项目使用计数
+        try:
+            self.db.increment_project_usage(project_name)
+        except Exception as e:
+            print(f"更新项目使用计数失败: {e}")
+        
+        # 聚焦输入框
+        self.input_field.setFocus()
+        
+        self.show_status(f"已插入项目: [{project_name}]", "success")
+    
+    def import_projects_from_history(self):
+        """从历史记录导入项目"""
+        try:
+            imported_count = self.db.get_projects_from_history()
+            
+            if imported_count > 0:
+                self.load_projects()
+                self.show_status(f"已从历史记录导入 {imported_count} 个项目", "success")
+            else:
+                self.show_status("没有找到新的项目可以导入", "info")
+                
+        except Exception as e:
+            self.show_status(f"导入项目失败: {str(e)}", "error")
+    
+    def add_new_project(self):
+        """添加新项目"""
+        from PySide6.QtWidgets import QInputDialog
+        
+        # 弹出输入对话框
+        project_name, ok = QInputDialog.getText(
+            self, 
+            "添加项目", 
+            "请输入项目名称:",
+            text=""
+        )
+        
+        if ok and project_name.strip():
+            project_name = project_name.strip()
+            
+            # 验证项目名格式（应该是不带方括号的）
+            if project_name.startswith("[") and project_name.endswith("]"):
+                project_name = project_name[1:-1]
+            
+            try:
+                # 添加到数据库
+                self.db.add_project(project_name)
+                
+                # 重新加载项目
+                self.load_projects()
+                
+                self.show_status(f"已添加项目: [{project_name}]", "success")
+                
+            except Exception as e:
+                if "UNIQUE constraint failed" in str(e):
+                    self.show_status(f"项目 [{project_name}] 已存在", "warning")
+                else:
+                    self.show_status(f"添加项目失败: {str(e)}", "error")
+        elif ok:
+            self.show_status("项目名称不能为空", "warning")
 
 
 def main():

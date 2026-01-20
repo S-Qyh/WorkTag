@@ -32,9 +32,20 @@ class Database:
             )
         ''')
         
+        # 创建项目表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                usage_count INTEGER DEFAULT 0
+            )
+        ''')
+        
         # 创建索引以提高查询性能
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_date ON work_log(date)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_project ON work_log(project)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_project_name ON projects(name)')
         
         self.conn.commit()
     
@@ -121,6 +132,62 @@ class Database:
         cursor.execute('DELETE FROM work_log WHERE id = ?', (log_id,))
         self.conn.commit()
         return cursor.rowcount > 0
+    
+    # 项目管理方法
+    def add_project(self, name: str) -> bool:
+        """添加项目"""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                INSERT OR IGNORE INTO projects (name) 
+                VALUES (?)
+            ''', (name,))
+            self.conn.commit()
+            return cursor.rowcount > 0
+        except:
+            return False
+    
+    def get_all_projects(self) -> List[Dict]:
+        """获取所有项目"""
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT id, name, created_at, usage_count
+            FROM projects
+            ORDER BY usage_count DESC, name ASC
+        ''')
+        return [dict(row) for row in cursor.fetchall()]
+    
+    def delete_project(self, project_id: int) -> bool:
+        """删除项目"""
+        cursor = self.conn.cursor()
+        cursor.execute('DELETE FROM projects WHERE id = ?', (project_id,))
+        self.conn.commit()
+        return cursor.rowcount > 0
+    
+    def increment_project_usage(self, name: str) -> bool:
+        """增加项目使用计数"""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute('''
+                UPDATE projects 
+                SET usage_count = usage_count + 1 
+                WHERE name = ?
+            ''', (name,))
+            self.conn.commit()
+            return cursor.rowcount > 0
+        except:
+            return False
+    
+    def get_projects_from_history(self) -> List[str]:
+        """从历史日志中提取项目名"""
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT DISTINCT project
+            FROM work_log
+            WHERE project IS NOT NULL AND project != ''
+            ORDER BY project
+        ''')
+        return [row[0] for row in cursor.fetchall()]
     
     def close(self):
         """关闭数据库连接"""

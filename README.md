@@ -12,6 +12,7 @@
 - 🎯 **项目统计**：自动按项目分类统计
 - 🖥️ **系统托盘**：支持最小化到系统托盘
 - 🎨 **暗色主题**：现代化暗色界面，保护眼睛
+- 📋 **项目选择**：快速选择常用项目，无需重复输入
 
 ## 安装与运行
 
@@ -51,6 +52,23 @@ python main.py
 - `#标签`：会被提取为标签字段，支持多个标签
 - 剩余文本：作为工作内容
 
+### 项目选择功能
+
+WorkTag 新增了项目选择功能，让您无需重复输入项目名：
+
+1. **项目按钮区域**：窗口顶部显示常用项目按钮
+2. **快速插入**：点击项目按钮即可将 `[项目名]` 插入到输入框光标位置
+3. **使用统计**：系统自动统计项目使用次数，常用项目排在前面
+4. **项目管理**：
+   - **从历史导入**：自动从已有日志记录中提取项目名
+   - **添加项目**：手动添加新项目
+   - **刷新**：重新加载项目列表
+
+**使用示例**：
+- 点击 `[Unity]` 按钮 → 输入框自动插入 `[Unity]`
+- 继续输入工作内容：`修复广告回调 #bug`
+- 完整输入：`[Unity] 修复广告回调 #bug`
+
 ### 周报生成
 
 1. 点击"生成周报"按钮
@@ -87,6 +105,14 @@ CREATE TABLE work_log (
     tags TEXT,                 -- 标签：#hook,#bug
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 新增 projects 表（v1.1.0）
+CREATE TABLE projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,          -- 项目名称
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    usage_count INTEGER DEFAULT 0       -- 使用次数统计
+);
 ```
 
 ## 快捷键
@@ -104,6 +130,7 @@ CREATE TABLE work_log (
 
 ## 开发计划
 
+- [x] **项目选择功能**：快速选择常用项目（v1.1.0）
 - [ ] 支持自定义窗口位置记忆
 - [ ] 支持数据备份与恢复
 - [ ] 支持导出为 Word/PDF 格式
